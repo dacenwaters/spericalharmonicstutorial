@@ -1,0 +1,729 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Spherical Harmonics Visualizer</title>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+<style>
+*{box-sizing:border-box;margin:0;padding:0}
+body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;background:#f0f1f3;color:#282c3c;min-height:100vh}
+.topbar{background:#fafafc;border-bottom:1px solid #c8cad2;padding:0 16px;display:flex;align-items:center;gap:0}
+.topbar h1{font-size:15px;font-weight:600;color:#282c3c;padding-right:24px;border-right:1px solid #c8cad2;margin-right:8px}
+.tab{padding:12px 18px;font-size:13px;font-weight:500;color:#646882;cursor:pointer;border-bottom:2px solid transparent;transition:color .15s,border-color .15s;white-space:nowrap}
+.tab:hover{color:#282c3c}
+.tab.active{color:#3c64c8;border-bottom-color:#3c64c8}
+.page{display:none;flex-direction:column;height:calc(100vh - 45px)}
+.page.active{display:flex}
+.toolbar{background:#fafafc;border-bottom:1px solid #c8cad2;padding:8px 16px;display:flex;align-items:center;gap:12px;flex-wrap:wrap}
+.toolbar label{font-size:12px;font-weight:600;color:#646882}
+.toolbar input[type=range]{width:110px;accent-color:#3c64c8}
+.toolbar select{font-size:13px;padding:4px 8px;border:1px solid #c8cad2;border-radius:6px;background:#fff;color:#282c3c}
+.toolbar input[type=number]{font-size:13px;padding:4px 8px;border:1px solid #c8cad2;border-radius:6px;background:#fff;color:#282c3c;width:60px}
+.val{font-size:13px;font-weight:500;min-width:30px;color:#282c3c}
+.btn{padding:6px 18px;font-size:13px;font-weight:600;background:#3c64c8;color:#fff;border:none;border-radius:6px;cursor:pointer}
+.btn:hover{background:#2d52b0}
+.btn:disabled{background:#b0b8d8;cursor:default}
+.hint{font-size:11px;color:#646882;margin-left:8px}
+.info-toggle{font-size:12px;color:#3c64c8;cursor:pointer;margin-left:auto;white-space:nowrap;background:none;border:none;font-weight:500}
+.info-panel{background:#ebf0ff;border-bottom:1px solid #c8cad2;padding:12px 20px;font-size:12px;line-height:1.7;color:#282c3c;display:none;max-height:260px;overflow-y:auto}
+.info-panel.open{display:block}
+.info-panel h3{font-size:13px;font-weight:600;margin-bottom:6px}
+.plots{display:grid;grid-template-columns:repeat(3,1fr);gap:8px;padding:8px;flex:1;min-height:0}
+.plot-col{display:flex;flex-direction:column;gap:4px;min-height:0}
+.canvas-wrap{flex:1;min-height:0;background:#fafafc;border:1px solid #c8cad2;border-radius:8px;overflow:hidden;position:relative;cursor:grab}
+.canvas-wrap:active{cursor:grabbing}
+.canvas-wrap canvas{width:100%!important;height:100%!important}
+.plot-title{font-size:11px;text-align:center;color:#282c3c;font-weight:600;position:absolute;top:8px;left:0;right:0;pointer-events:none}
+.colorbar-wrap{height:36px;background:#fafafc;border:1px solid #c8cad2;border-radius:6px;overflow:hidden;position:relative}
+.colorbar-wrap canvas{width:100%;height:100%}
+.bottom-panel{height:160px;background:#fafafc;border-top:1px solid #c8cad2;padding:8px 12px;flex-shrink:0}
+.status{font-size:11px;color:#3c64c8;font-style:italic;margin-left:6px}
+.sep{width:1px;height:20px;background:#c8cad2;margin:0 4px}
+.axis-label{position:absolute;font-size:11px;font-weight:700;pointer-events:none;padding:1px 3px;border-radius:3px;background:rgba(250,250,252,0.75)}
+</style>
+</head>
+<body>
+
+<div class="topbar">
+  <h1>Spherical Harmonics</h1>
+  <div class="tab active" onclick="switchTab('harmonics',this)">Harmonics viewer</div>
+  <div class="tab" onclick="switchTab('decomp',this)">SH decomposition</div>
+</div>
+
+<!-- ═══════════════════════════════════════════════════════════ TAB 1 -->
+<div class="page active" id="page-harmonics">
+  <div class="toolbar">
+    <label>l</label>
+    <input type="range" id="sl" min="0" max="6" value="2">
+    <span class="val" id="vl">2</span>
+    <div class="sep"></div>
+    <label>m</label>
+    <input type="range" id="sm" min="-6" max="6" value="1">
+    <span class="val" id="vm">1</span>
+    <div class="sep"></div>
+    <button class="btn" id="btnH" onclick="plotHarmonics()">Plot</button>
+    <span class="hint">drag to rotate · scroll to zoom · all panels linked</span>
+    <button class="info-toggle" onclick="toggleInfo('hi')">What am I looking at? ▾</button>
+  </div>
+  <div class="info-panel" id="hi">
+    <h3>Spherical harmonics Y<sub>l</sub><sup>m</sup>(θ, φ)</h3>
+    <p>Spherical harmonics are the natural basis functions for the sphere — the analogue of sines and cosines on a circle. They appear throughout quantum mechanics as the angular part of atomic wavefunctions, and in any problem with spherical geometry.</p>
+    <p style="margin-top:6px"><strong>Each panel shows a 3D polar plot:</strong> the distance from the origin in direction (θ,φ) equals the absolute value of the plotted quantity in that direction. Colour encodes the signed value.</p>
+    <p style="margin-top:6px">
+      <strong>Left — Re[Y<sub>l</sub><sup>m</sup>]:</strong> Real part. Blue = negative, red = positive. For m=0 the harmonic is entirely real.<br>
+      <strong>Centre — Im[Y<sub>l</sub><sup>m</sup>]:</strong> Imaginary part. Zero when m=0.<br>
+      <strong>Right — |Y<sub>l</sub><sup>m</sup>|²:</strong> Angular probability density — always non-negative. This is the quantity that appears directly in quantum mechanical probabilities.
+    </p>
+    <p style="margin-top:6px"><strong>Quantum numbers:</strong> l ≥ 0 is the angular momentum quantum number; m with |m| ≤ l is the magnetic quantum number. The number of nodal surfaces equals l, with |m| nodal cones and (l−|m|) nodal planes.</p>
+    <p style="margin-top:6px"><strong>Try:</strong> l=0,m=0 (perfect sphere) · l=1,m=0 (p<sub>z</sub> dumbbell) · l=2,m=0 (d<sub>z²</sub>) · l=4,m=±4 (8-lobed clover)</p>
+  </div>
+  <div class="plots">
+    <div class="plot-col">
+      <div class="canvas-wrap" id="hw0"><span class="plot-title">Re[Y]</span>
+      <span class="axis-label" id="hw0-ax" style="color:#c84646">x</span>
+      <span class="axis-label" id="hw0-ay" style="color:#32a050">y</span>
+      <span class="axis-label" id="hw0-az" style="color:#3264c8">z</span>
+    </div>
+    <div class="colorbar-wrap"><canvas id="cb-h0"></canvas></div>
+    </div>
+    <div class="plot-col">
+      <div class="canvas-wrap" id="hw1"><span class="plot-title">Im[Y]</span>
+      <span class="axis-label" id="hw1-ax" style="color:#c84646">x</span>
+      <span class="axis-label" id="hw1-ay" style="color:#32a050">y</span>
+      <span class="axis-label" id="hw1-az" style="color:#3264c8">z</span>
+    </div>
+    <div class="colorbar-wrap"><canvas id="cb-h1"></canvas></div>
+    </div>
+    <div class="plot-col">
+      <div class="canvas-wrap" id="hw2"><span class="plot-title">|Y|²</span>
+      <span class="axis-label" id="hw2-ax" style="color:#c84646">x</span>
+      <span class="axis-label" id="hw2-ay" style="color:#32a050">y</span>
+      <span class="axis-label" id="hw2-az" style="color:#3264c8">z</span>
+    </div>
+    <div class="colorbar-wrap"><canvas id="cb-h2"></canvas></div>
+    </div>
+  </div>
+</div>
+
+<!-- ═══════════════════════════════════════════════════════════ TAB 2 -->
+<div class="page" id="page-decomp">
+  <div class="toolbar">
+    <label>Function</label>
+    <select id="funcSel">
+      <option>Y₁⁰ (cosine)</option>
+      <option>step</option>
+      <option>gaussian</option>
+      <option>Y₁¹ (sine)</option>
+      <option>cubic</option>
+      <option>random blobs</option>
+      <option>McIntyre Ex. 7.5</option>
+    </select>
+    <div class="sep"></div>
+    <label>l<sub>max</sub></label>
+    <input type="number" id="lmaxIn" min="0" max="10" value="3">
+    <div class="sep"></div>
+    <button class="btn" id="btnD" onclick="runDecomp()">Approximate</button>
+    <span class="status" id="dstatus"></span>
+    <span class="hint">drag to rotate · scroll to zoom</span>
+    <button class="info-toggle" onclick="toggleInfo('di')">What am I looking at? ▾</button>
+  </div>
+  <div class="info-panel" id="di">
+    <h3>Spherical harmonic decomposition</h3>
+    <p>Any square-integrable function on the sphere can be written as f(θ,φ) = Σ c<sub>lm</sub> Y<sub>l</sub><sup>m</sup>(θ,φ), where the coefficients are c<sub>lm</sub> = ∫ f(θ,φ) Y<sub>l</sub><sup>m</sup>*(θ,φ) sinθ dθ dφ. This is the spherical analogue of a Fourier series.</p>
+    <p style="margin-top:6px">
+      <strong>Left — f(θ,φ):</strong> The original function. Radius = |f|, colour = signed value.<br>
+      <strong>Centre — Approximation:</strong> Partial sum including all terms up to l = l<sub>max</sub>. The title shows the percentage of signal captured.<br>
+      <strong>Right — Residual:</strong> f minus the approximation, on a fixed ±1 colour scale so you can watch it shrink as l<sub>max</sub> grows.
+    </p>
+    <p style="margin-top:6px"><strong>Power spectrum (bottom):</strong> Each bar shows Σ<sub>m</sub>|c<sub>lm</sub>|² for that l — the "energy" at each angular scale. Blue bars are included in the current sum.</p>
+    <p style="margin-top:6px"><strong>Try:</strong> Y₁⁰ and Y₁¹ (sine) are exact at l<sub>max</sub>=1 · step shows Gibbs ringing · McIntyre Ex. 7.5 has power only at even l (converges well by l<sub>max</sub>=6)</p>
+  </div>
+  <div class="plots">
+    <div class="plot-col">
+      <div class="canvas-wrap" id="dw0"><span class="plot-title" id="dt0">f(θ,φ)</span>
+      <span class="axis-label" id="dw0-ax" style="color:#c84646">x</span>
+      <span class="axis-label" id="dw0-ay" style="color:#32a050">y</span>
+      <span class="axis-label" id="dw0-az" style="color:#3264c8">z</span>
+    </div>
+    <div class="colorbar-wrap"><canvas id="cb-d0"></canvas></div>
+    </div>
+    <div class="plot-col">
+      <div class="canvas-wrap" id="dw1"><span class="plot-title" id="dt1">Approximation</span>
+      <span class="axis-label" id="dw1-ax" style="color:#c84646">x</span>
+      <span class="axis-label" id="dw1-ay" style="color:#32a050">y</span>
+      <span class="axis-label" id="dw1-az" style="color:#3264c8">z</span>
+    </div>
+    <div class="colorbar-wrap"><canvas id="cb-d1"></canvas></div>
+    </div>
+    <div class="plot-col">
+      <div class="canvas-wrap" id="dw2"><span class="plot-title" id="dt2">Residual (fixed ±1)</span>
+      <span class="axis-label" id="dw2-ax" style="color:#c84646">x</span>
+      <span class="axis-label" id="dw2-ay" style="color:#32a050">y</span>
+      <span class="axis-label" id="dw2-az" style="color:#3264c8">z</span>
+    </div>
+    <div class="colorbar-wrap"><canvas id="cb-d2"></canvas></div>
+    </div>
+  </div>
+  <div class="bottom-panel">
+    <canvas id="powerCanvas" style="width:100%;height:100%"></canvas>
+  </div>
+</div>
+
+<script>
+// ─────────────────────────────────────────────────────────────────────
+// SHARED UTILITIES
+// ─────────────────────────────────────────────────────────────────────
+function switchTab(name, el) {
+  document.querySelectorAll('.tab').forEach(t=>t.classList.remove('active'));
+  document.querySelectorAll('.page').forEach(p=>p.classList.remove('active'));
+  el.classList.add('active');
+  document.getElementById('page-'+name).classList.add('active');
+  setTimeout(()=>{ onResize(); }, 50);
+}
+function toggleInfo(id){
+  const p=document.getElementById(id);
+  const isOpen=p.classList.toggle('open');
+  const btn=document.querySelector(`[onclick="toggleInfo('${id}')"]`);
+  if(btn) btn.textContent=isOpen?'What am I looking at? ▴':'What am I looking at? ▾';
+}
+
+// ─────────────────────────────────────────────────────────────────────
+// MATHS: Spherical Harmonics
+// ─────────────────────────────────────────────────────────────────────
+function factorial(n){let r=1;for(let i=2;i<=n;i++)r*=i;return r;}
+function legendre(l,am,x){
+  const s=Math.sqrt(1-x*x);
+  let pmm=1;
+  for(let i=1;i<=am;i++) pmm*=-(2*i-1)*s;
+  if(l===am) return pmm;
+  let pmp1=x*(2*am+1)*pmm;
+  if(l===am+1) return pmp1;
+  let res=0;
+  for(let ll=am+2;ll<=l;ll++){res=((2*ll-1)*x*pmp1-(ll+am-1)*pmm)/(ll-am);pmm=pmp1;pmp1=res;}
+  return res;
+}
+function normFactor(l,am){
+  return Math.sqrt((2*l+1)/(4*Math.PI)*factorial(l-am)/factorial(l+am));
+}
+function ylmRI(l,m,theta,phi){
+  const am=Math.abs(m);
+  const N=normFactor(l,am), P=legendre(l,am,Math.cos(theta));
+  const phase=(am%2===0)?1:-1;
+  const re_pos=phase*N*P*Math.cos(am*phi);
+  const im_pos=phase*N*P*Math.sin(am*phi);
+  if(m>0)  return [re_pos, im_pos];
+  if(m===0) return [N*P, 0];
+  const s=(am%2===0)?1:-1;
+  return [s*re_pos, -s*im_pos];
+}
+
+// ─────────────────────────────────────────────────────────────────────
+// COLORMAPS
+// ─────────────────────────────────────────────────────────────────────
+// MODE 0/ORIG/APPROX: blue↔white↔red (balance)
+// MODE 1/IMAG: green↔white↔magenta (curl)
+// MODE 2/PROB: viridis-like
+// MODE 3/RESID: same as balance but called explicitly
+function cmapBalance(t){ // blue=0 white=0.5 red=1
+  t=Math.max(0,Math.min(1,t));
+  const u=2*t-1;
+  let r,g,b;
+  if(u<=0){const s=-u; r=1-0.80*s; g=1-0.65*s; b=1-0.10*s;}
+  else    {const s= u; r=1-0.10*s; g=1-0.68*s; b=1-0.88*s;}
+  return [r,g,b];
+}
+function cmapCurl(t){ // green=0 white=0.5 magenta=1
+  t=Math.max(0,Math.min(1,t));
+  const u=2*t-1;
+  let r,g,b;
+  if(u<=0){const s=-u; r=1-0.95*s; g=1-0.42*s; b=1-0.75*s;}
+  else    {const s= u; r=1-0.28*s; g=1-0.88*s; b=1-0.38*s;}
+  return [r,g,b];
+}
+function cmapViridis(t){
+  t=Math.max(0,Math.min(1,t));
+  const r=Math.min(1,Math.max(0, 0.27+t*(-0.30+t*(1.80-t*0.80))));
+  const g=Math.min(1,Math.max(0, 0.00+t*( 0.90+t*(0.50-t*0.40))));
+  const b=Math.min(1,Math.max(0, 0.43+t*( 0.50-t* 1.80)));
+  return [r,g,b];
+}
+function getColor(t, mode){ // mode: 'real','imag','prob','balance','curl'
+  if(mode==='real'||mode==='balance'||mode==='orig'||mode==='approx') return cmapBalance(t);
+  if(mode==='imag'||mode==='curl') return cmapCurl(t);
+  if(mode==='prob') return cmapViridis(t);
+  if(mode==='resid') return cmapBalance(t);
+  return cmapBalance(t);
+}
+
+// ─────────────────────────────────────────────────────────────────────
+// THREE.JS SCENE HELPER
+// ─────────────────────────────────────────────────────────────────────
+const scenes=[];
+
+function makeScene(wrapId, mode){
+  const wrap=document.getElementById(wrapId);
+  const W=wrap.clientWidth||400, H=wrap.clientHeight||300;
+
+  const renderer=new THREE.WebGLRenderer({antialias:true,alpha:true});
+  renderer.setPixelRatio(window.devicePixelRatio);
+  renderer.setSize(W,H);
+  renderer.setClearColor(0xfafafc,1);
+  wrap.appendChild(renderer.domElement);
+
+  const scene=new THREE.Scene();
+  const camera=new THREE.PerspectiveCamera(45,W/H,0.01,100);
+  scene.add(new THREE.AmbientLight(0xffffff,0.55));
+  const dl=new THREE.DirectionalLight(0xffffff,0.65);
+  dl.position.set(3,5,3); scene.add(dl);
+
+  // axis lines: x=red, y=green (into screen), z=blue (up = theta=0)
+  [[1,0,0,'#c84646'],[0,0,1,'#3264c8'],[0,1,0,'#32a050']].forEach(([x,y,z,col])=>{
+    const g=new THREE.BufferGeometry().setFromPoints([
+      new THREE.Vector3(0,0,0), new THREE.Vector3(x*1.5,y*1.5,z*1.5)
+    ]);
+    scene.add(new THREE.Line(g,new THREE.LineBasicMaterial({color:col,transparent:true,opacity:0.5})));
+  });
+
+  let rotX=0.35, rotY=-0.5, zoom=1.0;
+
+  const obj={renderer,scene,camera,mode,mesh:null,
+    getRotX:()=>rotX, getRotY:()=>rotY, getZoom:()=>zoom,
+    setView:(rx,ry,z)=>{rotX=rx;rotY=ry;zoom=z;updateCamera();}
+  };
+
+  function updateCamera(){
+    const r=2.8/zoom;
+    camera.position.x=r*Math.sin(rotY)*Math.cos(rotX);
+    camera.position.z=r*Math.cos(rotY)*Math.cos(rotX);
+    camera.position.y=r*Math.sin(rotX);
+    camera.lookAt(0,0,0);
+    renderer.render(scene,camera);
+    updateAxisLabels(obj, wrapId);
+  }
+  obj.updateCamera=updateCamera;
+  updateCamera();
+
+  scenes.push(obj);
+  return obj;
+}
+
+function buildMesh(sc, values, NT, NP, vmin, vmax){
+  if(sc.mesh){sc.scene.remove(sc.mesh);sc.mesh.geometry.dispose();sc.mesh.material.dispose();}
+  const range=(vmax-vmin)<1e-12?1:vmax-vmin;
+  const positions=[], colors=[], indices=[];
+  for(let i=0;i<=NT;i++){
+    const theta=Math.PI*i/NT;
+    for(let j=0;j<=NP;j++){
+      const phi=2*Math.PI*j/NP;
+      const v=values[i*(NP+1)+j];
+      const r=Math.abs(v);
+      // FIXED: x=r*sin*cos, y=r*sin*sin, z=r*cos  (z is up = theta=0)
+      positions.push(
+        r*Math.sin(theta)*Math.cos(phi),
+        r*Math.sin(theta)*Math.sin(phi),
+        r*Math.cos(theta)
+      );
+      const t=(v-vmin)/range;
+      const [cr,cg,cb]=getColor(t,sc.mode);
+      colors.push(cr,cg,cb);
+    }
+  }
+  for(let i=0;i<NT;i++) for(let j=0;j<NP;j++){
+    const a=i*(NP+1)+j, b=a+1, c=a+(NP+1), d=c+1;
+    indices.push(a,b,d, a,d,c);
+  }
+  const geo=new THREE.BufferGeometry();
+  geo.setAttribute('position',new THREE.Float32BufferAttribute(positions,3));
+  geo.setAttribute('color',new THREE.Float32BufferAttribute(colors,3));
+  geo.setIndex(indices);
+  geo.computeVertexNormals();
+  const mat=new THREE.MeshPhongMaterial({vertexColors:true,side:THREE.DoubleSide,shininess:30});
+  sc.mesh=new THREE.Mesh(geo,mat);
+  sc.scene.add(sc.mesh);
+  sc.updateCamera();
+}
+
+// ─────────────────────────────────────────────────────────────────────
+// AXIS LABEL POSITIONING — projects 3D tip to CSS pixels
+// ─────────────────────────────────────────────────────────────────────
+function updateAxisLabels(sc, wrapId){
+  const wrap=document.getElementById(wrapId);
+  if(!wrap) return;
+  const W=wrap.clientWidth, H=wrap.clientHeight;
+  // Axis tips in world space: x=(1.5,0,0), z=(0,0,1.5), y=(0,1.5,0)
+  const axes=[
+    {id:wrapId+'-ax', tip:new THREE.Vector3(1.65,0,0)},
+    {id:wrapId+'-ay', tip:new THREE.Vector3(0,1.65,0)},
+    {id:wrapId+'-az', tip:new THREE.Vector3(0,0,1.65)},
+  ];
+  axes.forEach(({id,tip})=>{
+    const el=document.getElementById(id);
+    if(!el) return;
+    const v=tip.clone().project(sc.camera);
+    const sx=(v.x* 0.5+0.5)*W;
+    const sy=(-v.y*0.5+0.5)*H;
+    el.style.left=(sx-6)+'px';
+    el.style.top =(sy-8)+'px';
+  });
+}
+
+
+function attachRotation(wrapId, group){
+  const wrap=document.getElementById(wrapId);
+  let down=false, lx=0, ly=0;
+  wrap.addEventListener('mousedown',e=>{down=true;lx=e.clientX;ly=e.clientY;});
+  window.addEventListener('mouseup',()=>{down=false;});
+  wrap.addEventListener('mousemove',e=>{
+    if(!down) return;
+    const dx=e.clientX-lx, dy=e.clientY-ly; lx=e.clientX; ly=e.clientY;
+    const sc0=group[0];
+    const nRY=sc0.getRotY()+dx*0.012, nRX=Math.max(-1.4,Math.min(1.4,sc0.getRotX()+dy*0.012));
+    group.forEach(s=>s.setView(nRX,nRY,s.getZoom()));
+  });
+  wrap.addEventListener('wheel',e=>{
+    e.preventDefault();
+    const f=e.deltaY<0?1.1:1/1.1;
+    group.forEach(s=>s.setView(s.getRotX(),s.getRotY(),Math.max(0.2,Math.min(5,s.getZoom()*f))));
+  },{passive:false});
+  // touch
+  let t0=null;
+  wrap.addEventListener('touchstart',e=>{if(e.touches.length===1){t0=e.touches[0];}},{passive:true});
+  wrap.addEventListener('touchmove',e=>{
+    if(!t0||e.touches.length!==1) return;
+    const dx=e.touches[0].clientX-t0.clientX, dy=e.touches[0].clientY-t0.clientY;
+    t0=e.touches[0];
+    const sc0=group[0];
+    const nRY=sc0.getRotY()+dx*0.012, nRX=Math.max(-1.4,Math.min(1.4,sc0.getRotX()+dy*0.012));
+    group.forEach(s=>s.setView(nRX,nRY,s.getZoom()));
+  },{passive:true});
+}
+
+// ─────────────────────────────────────────────────────────────────────
+// COLORBAR DRAWING
+// ─────────────────────────────────────────────────────────────────────
+function drawColorbar(canvasId, mode, vmin, vmax){
+  const c=document.getElementById(canvasId);
+  if(!c) return;
+  c.width=c.offsetWidth||400; c.height=c.offsetHeight||36;
+  const ctx=c.getContext('2d');
+  const W=c.width, H=c.height;
+  const ml=54, mr=54, barH=12, barY=H-barH-2;
+  const barW=W-ml-mr;
+  ctx.clearRect(0,0,W,H);
+  for(let x=0;x<barW;x++){
+    const t=x/(barW-1);
+    const [r,g,b]=getColor(t,mode);
+    ctx.fillStyle=`rgb(${Math.round(r*255)},${Math.round(g*255)},${Math.round(b*255)})`;
+    ctx.fillRect(ml+x,barY,1,barH);
+  }
+  ctx.strokeStyle='#c8cad2'; ctx.lineWidth=0.5;
+  ctx.strokeRect(ml,barY,barW,barH);
+  ctx.fillStyle='#646882'; ctx.font='10px system-ui';
+  ctx.textAlign='right'; ctx.fillText(vmin.toFixed(2),ml-3,barY+barH-1);
+  ctx.textAlign='left';  ctx.fillText(vmax.toFixed(2),ml+barW+3,barY+barH-1);
+}
+
+// ─────────────────────────────────────────────────────────────────────
+// TAB 1: HARMONICS VIEWER
+// ─────────────────────────────────────────────────────────────────────
+const NT_H=100, NP_H=200;
+let hScenes=[];
+
+function initHarmonics(){
+  ['hw0','hw1','hw2'].forEach((id,i)=>{
+    const sc=makeScene(id, ['real','imag','prob'][i]);
+    hScenes.push(sc);
+  });
+  ['hw0','hw1','hw2'].forEach(id=>attachRotation(id,hScenes));
+  plotHarmonics();
+}
+
+function plotHarmonics(){
+  const l=+document.getElementById('sl').value;
+  const m=+document.getElementById('sm').value;
+  if(Math.abs(m)>l){alert('|m| must be ≤ l');return;}
+
+  const real=[], imag=[], prob=[];
+  for(let i=0;i<=NT_H;i++){
+    const theta=Math.PI*i/NT_H;
+    for(let j=0;j<=NP_H;j++){
+      const phi=2*Math.PI*j/NP_H;
+      const [re,im]=ylmRI(l,m,theta,phi);
+      real.push(re); imag.push(im); prob.push(re*re+im*im);
+    }
+  }
+
+  const rMin=Math.min(...real), rMax=Math.max(...real);
+  const iMin=Math.min(...imag), iMax=Math.max(...imag);
+  const pMax=Math.max(...prob);
+
+  buildMesh(hScenes[0],real,NT_H,NP_H,rMin,rMax);
+  buildMesh(hScenes[1],imag,NT_H,NP_H,iMin,iMax);
+  buildMesh(hScenes[2],prob,NT_H,NP_H,0,pMax);
+
+  const labels=['Re[Y]','Im[Y]','|Y|²'];
+  ['hw0','hw1','hw2'].forEach((id,i)=>{
+    document.querySelector('#'+id+' .plot-title').textContent=
+      `${labels[i]}   l=${l}  m=${m}`;
+  });
+
+  drawColorbar('cb-h0','real',rMin,rMax);
+  drawColorbar('cb-h1','imag',iMin,iMax);
+  drawColorbar('cb-h2','prob',0,pMax);
+}
+
+document.getElementById('sl').addEventListener('input',function(){
+  const l=+this.value;
+  document.getElementById('vl').textContent=l;
+  const sm=document.getElementById('sm');
+  let m=+sm.value;
+  m=Math.max(-l,Math.min(l,m));
+  sm.min=-l; sm.max=l; sm.value=m;
+  document.getElementById('vm').textContent=m;
+});
+document.getElementById('sm').addEventListener('input',function(){
+  document.getElementById('vm').textContent=this.value;
+});
+
+// ─────────────────────────────────────────────────────────────────────
+// TAB 2: DECOMPOSITION
+// ─────────────────────────────────────────────────────────────────────
+const NT_D=70, NP_D=140, L_MAX=10;
+let dScenes=[];
+let dFgrid=null, dCoeffs=null, dCurrentFunc='', dCurrentLmax=0;
+
+// Gauss-Legendre nodes/weights (N=80)
+const GL_N=80;
+const [GL_X,GL_W]=(()=>{
+  const x=new Float64Array(GL_N), w=new Float64Array(GL_N);
+  for(let i=0;i<Math.ceil(GL_N/2);i++){
+    let xi=Math.cos(Math.PI*(i+0.75)/(GL_N+0.5));
+    for(let iter=0;iter<100;iter++){
+      let p0=1,p1=xi;
+      for(let j=2;j<=GL_N;j++){const p2=((2*j-1)*xi*p1-(j-1)*p0)/j;p0=p1;p1=p2;}
+      const dp=GL_N*(xi*p1-p0)/(xi*xi-1);
+      const dx=p1/dp; xi-=dx;
+      if(Math.abs(dx)<1e-14) break;
+    }
+    let p0=1,p1=xi;
+    for(let j=2;j<=GL_N;j++){const p2=((2*j-1)*xi*p1-(j-1)*p0)/j;p0=p1;p1=p2;}
+    const dp=GL_N*(xi*p1-p0)/(xi*xi-1);
+    const wi=2/((1-xi*xi)*dp*dp);
+    x[i]=xi; w[i]=wi; x[GL_N-1-i]=-xi; w[GL_N-1-i]=wi;
+  }
+  return [x,w];
+})();
+
+function evalPreset(name,t,p){
+  switch(name){
+    case 'Y₁⁰ (cosine)':       return Math.cos(t);
+    case 'step':                return t<Math.PI/2?1:-1;
+    case 'gaussian':            return Math.exp(-t*t/0.72);
+    case 'Y₁¹ (sine)':  return Math.sin(t)*Math.cos(p);
+    case 'cubic':               return Math.pow(Math.cos(t),3);
+    case 'random blobs':{
+      const C=[[0.8,1.2],[2.1,4.5],[1.4,2.8],[2.6,0.6]], W2=[1,-0.7,0.5,0.9];
+      let v=0; for(let k=0;k<4;k++){const dt=t-C[k][0],dp=p-C[k][1];v+=W2[k]*Math.exp(-(dt*dt+dp*dp)/0.32);}
+      return v;
+    }
+    case 'McIntyre Ex. 7.5':{
+      const c2t=Math.cos(2*t);
+      return (0.25+c2t*c2t*c2t+Math.sin(p)*Math.sin(p))/1.0046;
+    }
+    default: return Math.cos(t);
+  }
+}
+
+function evalFgrid(name){
+  const g=new Float64Array((NT_D+1)*(NP_D+1));
+  for(let i=0;i<=NT_D;i++) for(let j=0;j<=NP_D;j++)
+    g[i*(NP_D+1)+j]=evalPreset(name,Math.PI*i/NT_D,2*Math.PI*j/NP_D);
+  return g;
+}
+
+function computeCoeffs(name){
+  const dphi=2*Math.PI/NP_D;
+  const phi1d=new Float64Array(NP_D+1);
+  for(let j=0;j<=NP_D;j++) phi1d[j]=2*Math.PI*j/NP_D;
+
+  // precompute f on GL grid
+  const fGL=[];
+  for(let i=0;i<GL_N;i++){
+    const t=Math.acos(GL_X[i]);
+    const row=new Float64Array(NP_D+1);
+    for(let j=0;j<=NP_D;j++) row[j]=evalPreset(name,t,phi1d[j]);
+    fGL.push(row);
+  }
+
+  const cs=new Map();
+  for(let l=0;l<=L_MAX;l++){
+    for(let m=-l;m<=l;m++){
+      let re=0,im=0;
+      for(let i=0;i<GL_N;i++){
+        const t=Math.acos(GL_X[i]), wt=GL_W[i];
+        for(let j=0;j<=NP_D;j++){
+          const [yr,yi]=ylmRI(l,m,t,phi1d[j]);
+          const w=wt*dphi;
+          re+=fGL[i][j]*yr*w;
+          im-=fGL[i][j]*yi*w;
+        }
+      }
+      cs.set(l*100+(m+50),[re,im]);
+    }
+  }
+  return cs;
+}
+
+function reconstruct(lmax){
+  const approx=new Float64Array((NT_D+1)*(NP_D+1));
+  for(let l=0;l<=lmax;l++) for(let m=-l;m<=l;m++){
+    const c=dCoeffs.get(l*100+(m+50));
+    if(!c) continue;
+    for(let i=0;i<=NT_D;i++) for(let j=0;j<=NP_D;j++){
+      const [yr,yi]=ylmRI(l,m,Math.PI*i/NT_D,2*Math.PI*j/NP_D);
+      approx[i*(NP_D+1)+j]+=c[0]*yr-c[1]*yi;
+    }
+  }
+  return approx;
+}
+
+function initDecomp(){
+  ['dw0','dw1','dw2'].forEach((id,i)=>{
+    const sc=makeScene(id,['orig','approx','resid'][i]);
+    dScenes.push(sc);
+  });
+  ['dw0','dw1','dw2'].forEach(id=>attachRotation(id,dScenes));
+}
+
+function runDecomp(){
+  const func=document.getElementById('funcSel').value;
+  const lmax=Math.max(0,Math.min(L_MAX,+document.getElementById('lmaxIn').value||0));
+  document.getElementById('btnD').disabled=true;
+  document.getElementById('dstatus').textContent='computing…';
+
+  setTimeout(()=>{
+    dCurrentFunc=func; dCurrentLmax=lmax;
+    dFgrid=evalFgrid(func);
+    dCoeffs=computeCoeffs(func);
+    drawDecomp();
+    document.getElementById('btnD').disabled=false;
+    document.getElementById('dstatus').textContent='';
+  },20);
+}
+
+function arr32min(a){let v=Infinity;for(let x of a)if(x<v)v=x;return v;}
+function arr32max(a){let v=-Infinity;for(let x of a)if(x>v)v=x;return v;}
+function arr32rms(a){let s=0;for(let x of a)s+=x*x;return Math.sqrt(s/a.length);}
+
+function drawDecomp(){
+  const approx=reconstruct(dCurrentLmax);
+  const residual=new Float64Array(dFgrid.length);
+  for(let i=0;i<dFgrid.length;i++) residual[i]=dFgrid[i]-approx[i];
+
+  const fMin=arr32min(dFgrid), fMax=arr32max(dFgrid);
+  const aMin=arr32min(approx), aMax=arr32max(approx);
+
+  const rmsF=arr32rms(dFgrid), rmsR=arr32rms(residual);
+  const pct=(100*(1-rmsR/(rmsF+1e-12))).toFixed(1);
+
+  buildMesh(dScenes[0],dFgrid,  NT_D,NP_D,fMin,fMax);
+  buildMesh(dScenes[1],approx,  NT_D,NP_D,aMin,aMax);
+  buildMesh(dScenes[2],residual,NT_D,NP_D,-1,1);
+
+  document.getElementById('dt0').textContent=`f(θ,φ)  [${dCurrentFunc}]`;
+  document.getElementById('dt1').textContent=`Approximation  l ≤ ${dCurrentLmax}  (${pct}% captured)`;
+  document.getElementById('dt2').textContent='Residual (fixed ±1)';
+
+  drawColorbar('cb-d0','orig',fMin,fMax);
+  drawColorbar('cb-d1','approx',aMin,aMax);
+  drawColorbar('cb-d2','resid',-1,1);
+
+  drawPowerSpectrum();
+}
+
+function drawPowerSpectrum(){
+  const c=document.getElementById('powerCanvas');
+  c.width=c.offsetWidth||800; c.height=c.offsetHeight||140;
+  const ctx=c.getContext('2d');
+  const W=c.width,H=c.height;
+  const pL=52,pR=16,pT=22,pB=34;
+  const plotW=W-pL-pR, plotH=H-pT-pB;
+  ctx.clearRect(0,0,W,H);
+
+  const power=new Float64Array(L_MAX+1);
+  for(let l=0;l<=L_MAX;l++) for(let m=-l;m<=l;m++){
+    const c2=dCoeffs.get(l*100+(m+50));
+    if(c2) power[l]+=c2[0]*c2[0]+c2[1]*c2[1];
+  }
+  let maxP=1e-12; for(let p of power) if(p>maxP) maxP=p;
+
+  // grid
+  ctx.strokeStyle='#dddee6'; ctx.lineWidth=0.5;
+  for(let k=1;k<=4;k++){
+    const y=pT+plotH-plotH*k/4;
+    ctx.beginPath(); ctx.moveTo(pL,y); ctx.lineTo(pL+plotW,y); ctx.stroke();
+  }
+
+  const n=L_MAX+1, barW=Math.max(4,Math.floor(plotW/n)-3);
+  const gap=Math.floor((plotW-n*barW)/(n+1));
+
+  for(let l=0;l<n;l++){
+    const bh=Math.floor(power[l]/maxP*plotH);
+    const bx=pL+gap+l*(barW+gap), by=pT+plotH-bh;
+    ctx.fillStyle=l<=dCurrentLmax?'#4a7be0':'#c8cad8';
+    ctx.fillRect(bx,by,barW,bh);
+    ctx.strokeStyle='#c8cad2'; ctx.lineWidth=0.5;
+    ctx.strokeRect(bx,by,barW,bh);
+    ctx.fillStyle='#646882'; ctx.font='10px system-ui'; ctx.textAlign='center';
+    ctx.fillText(String(l),bx+barW/2,pT+plotH+13);
+  }
+
+  ctx.strokeStyle='#c8cad2'; ctx.lineWidth=1;
+  ctx.beginPath(); ctx.moveTo(pL,pT); ctx.lineTo(pL,pT+plotH);
+  ctx.lineTo(pL+plotW,pT+plotH); ctx.stroke();
+
+  ctx.fillStyle='#646882'; ctx.font='9px system-ui'; ctx.textAlign='right';
+  for(let k=0;k<=4;k++){
+    const y=pT+plotH-plotH*k/4;
+    ctx.fillText((maxP*k/4).toFixed(2),pL-3,y+3);
+  }
+
+  ctx.fillStyle='#282c3c'; ctx.font='bold 11px system-ui'; ctx.textAlign='center';
+  ctx.fillText('Angular power spectrum   Σ|c_lm|²   (blue = included in sum)',W/2,13);
+  ctx.fillStyle='#646882'; ctx.font='10px system-ui';
+  ctx.fillText('l  (angular degree)',W/2,H-2);
+}
+
+// ─────────────────────────────────────────────────────────────────────
+// RESIZE
+// ─────────────────────────────────────────────────────────────────────
+function onResize(){
+  [...hScenes,...dScenes].forEach(sc=>{
+    const canvas=sc.renderer.domElement;
+    const wrap=canvas.parentElement;
+    if(!wrap) return;
+    const W=wrap.clientWidth, H=wrap.clientHeight;
+    if(W<10||H<10) return;
+    sc.renderer.setSize(W,H);
+    sc.camera.aspect=W/H;
+    sc.camera.updateProjectionMatrix();
+    sc.updateCamera();
+  });
+  // redraw colorbars
+  if(hScenes.length) plotHarmonics();
+}
+window.addEventListener('resize',()=>setTimeout(onResize,50));
+
+// ─────────────────────────────────────────────────────────────────────
+// INIT
+// ─────────────────────────────────────────────────────────────────────
+window.addEventListener('load',()=>{
+  initHarmonics();
+  initDecomp();
+  // pre-run decomp with default values
+  runDecomp();
+});
+</script>
+</body>
+</html>
