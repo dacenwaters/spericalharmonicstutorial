@@ -8,39 +8,54 @@
 <style>
 *{box-sizing:border-box;margin:0;padding:0}
 body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;background:#f0f1f3;color:#282c3c;min-height:100vh}
-.topbar{background:#fafafc;border-bottom:1px solid #c8cad2;padding:0 16px;display:flex;align-items:center;gap:0}
-.topbar h1{font-size:15px;font-weight:600;color:#282c3c;padding-right:24px;border-right:1px solid #c8cad2;margin-right:8px}
-.tab{padding:12px 18px;font-size:13px;font-weight:500;color:#646882;cursor:pointer;border-bottom:2px solid transparent;transition:color .15s,border-color .15s;white-space:nowrap}
+.topbar{background:#fafafc;border-bottom:1px solid #c8cad2;padding:0 12px;display:flex;align-items:center;gap:0;flex-wrap:wrap}
+.topbar h1{font-size:15px;font-weight:600;color:#282c3c;padding-right:16px;border-right:1px solid #c8cad2;margin-right:6px;white-space:nowrap}
+.tab{padding:11px 14px;font-size:13px;font-weight:500;color:#646882;cursor:pointer;border-bottom:2px solid transparent;transition:color .15s,border-color .15s;white-space:nowrap}
 .tab:hover{color:#282c3c}
 .tab.active{color:#3c64c8;border-bottom-color:#3c64c8}
-.page{display:none;flex-direction:column;height:calc(100vh - 45px)}
+.page{display:none;flex-direction:column;height:calc(100vh - 45px);overflow:hidden}
 .page.active{display:flex}
-.toolbar{background:#fafafc;border-bottom:1px solid #c8cad2;padding:8px 16px;display:flex;align-items:center;gap:12px;flex-wrap:wrap}
+.toolbar{background:#fafafc;border-bottom:1px solid #c8cad2;padding:8px 12px;display:flex;align-items:center;gap:10px;flex-wrap:wrap}
 .toolbar label{font-size:12px;font-weight:600;color:#646882}
-.toolbar input[type=range]{width:110px;accent-color:#3c64c8}
-.toolbar select{font-size:13px;padding:4px 8px;border:1px solid #c8cad2;border-radius:6px;background:#fff;color:#282c3c}
-.toolbar input[type=number]{font-size:13px;padding:4px 8px;border:1px solid #c8cad2;border-radius:6px;background:#fff;color:#282c3c;width:60px}
-.val{font-size:13px;font-weight:500;min-width:30px;color:#282c3c}
-.btn{padding:6px 18px;font-size:13px;font-weight:600;background:#3c64c8;color:#fff;border:none;border-radius:6px;cursor:pointer}
+.toolbar input[type=range]{width:100px;accent-color:#3c64c8}
+.toolbar select{font-size:13px;padding:4px 8px;border:1px solid #c8cad2;border-radius:6px;background:#fff;color:#282c3c;max-width:160px}
+.toolbar input[type=number]{font-size:13px;padding:4px 8px;border:1px solid #c8cad2;border-radius:6px;background:#fff;color:#282c3c;width:56px}
+.val{font-size:13px;font-weight:500;min-width:28px;color:#282c3c}
+.btn{padding:6px 16px;font-size:13px;font-weight:600;background:#3c64c8;color:#fff;border:none;border-radius:6px;cursor:pointer;white-space:nowrap}
 .btn:hover{background:#2d52b0}
 .btn:disabled{background:#b0b8d8;cursor:default}
-.hint{font-size:11px;color:#646882;margin-left:8px}
-.info-toggle{font-size:12px;color:#3c64c8;cursor:pointer;margin-left:auto;white-space:nowrap;background:none;border:none;font-weight:500}
-.info-panel{background:#ebf0ff;border-bottom:1px solid #c8cad2;padding:12px 20px;font-size:12px;line-height:1.7;color:#282c3c;display:none;max-height:260px;overflow-y:auto}
+.hint{font-size:11px;color:#646882}
+.info-toggle{font-size:12px;color:#3c64c8;cursor:pointer;white-space:nowrap;background:none;border:none;font-weight:500;padding:0;margin-left:auto}
+.info-panel{background:#ebf0ff;border-bottom:1px solid #c8cad2;padding:12px 16px;font-size:12px;line-height:1.7;color:#282c3c;display:none;max-height:220px;overflow-y:auto}
 .info-panel.open{display:block}
 .info-panel h3{font-size:13px;font-weight:600;margin-bottom:6px}
 .plots{display:grid;grid-template-columns:repeat(3,1fr);gap:8px;padding:8px;flex:1;min-height:0}
 .plot-col{display:flex;flex-direction:column;gap:4px;min-height:0}
 .canvas-wrap{flex:1;min-height:0;background:#fafafc;border:1px solid #c8cad2;border-radius:8px;overflow:hidden;position:relative;cursor:grab}
 .canvas-wrap:active{cursor:grabbing}
-.canvas-wrap canvas{width:100%!important;height:100%!important}
-.plot-title{font-size:11px;text-align:center;color:#282c3c;font-weight:600;position:absolute;top:8px;left:0;right:0;pointer-events:none}
-.colorbar-wrap{height:36px;background:#fafafc;border:1px solid #c8cad2;border-radius:6px;overflow:hidden;position:relative}
+.canvas-wrap canvas{width:100%!important;height:100%!important;display:block}
+.plot-title{font-size:11px;text-align:center;color:#282c3c;font-weight:600;position:absolute;top:8px;left:0;right:0;pointer-events:none;padding:0 4px}
+.colorbar-wrap{height:34px;background:#fafafc;border:1px solid #c8cad2;border-radius:6px;overflow:hidden;position:relative;flex-shrink:0}
 .colorbar-wrap canvas{width:100%;height:100%}
-.bottom-panel{height:160px;background:#fafafc;border-top:1px solid #c8cad2;padding:8px 12px;flex-shrink:0}
-.status{font-size:11px;color:#3c64c8;font-style:italic;margin-left:6px}
-.sep{width:1px;height:20px;background:#c8cad2;margin:0 4px}
+.bottom-panel{height:150px;background:#fafafc;border-top:1px solid #c8cad2;padding:6px 10px;flex-shrink:0}
+.status{font-size:11px;color:#3c64c8;font-style:italic}
+.sep{width:1px;height:20px;background:#c8cad2;margin:0 2px;flex-shrink:0}
 .axis-label{position:absolute;font-size:11px;font-weight:700;pointer-events:none;padding:1px 3px;border-radius:3px;background:rgba(250,250,252,0.75)}
+@media(max-width:600px){
+  .topbar h1{display:none}
+  .tab{padding:10px 12px;font-size:12px}
+  .page{height:auto;overflow:visible}
+  .toolbar{gap:8px;padding:8px 10px}
+  .toolbar input[type=range]{width:80px}
+  .toolbar select{max-width:130px;font-size:12px}
+  .hint{display:none}
+  .sep{display:none}
+  .info-toggle{font-size:11px;margin-left:4px}
+  .plots{grid-template-columns:1fr;gap:6px;padding:6px;flex:none}
+  .canvas-wrap{min-height:270px;flex:none;height:270px}
+  .bottom-panel{height:190px}
+  .info-panel{max-height:none}
+}
 </style>
 </head>
 <body>
@@ -386,17 +401,34 @@ function attachRotation(wrapId, group){
     const f=e.deltaY<0?1.1:1/1.1;
     group.forEach(s=>s.setView(s.getRotX(),s.getRotY(),Math.max(0.2,Math.min(5,s.getZoom()*f))));
   },{passive:false});
-  // touch
-  let t0=null;
-  wrap.addEventListener('touchstart',e=>{if(e.touches.length===1){t0=e.touches[0];}},{passive:true});
-  wrap.addEventListener('touchmove',e=>{
-    if(!t0||e.touches.length!==1) return;
-    const dx=e.touches[0].clientX-t0.clientX, dy=e.touches[0].clientY-t0.clientY;
-    t0=e.touches[0];
-    const sc0=group[0];
-    const nRY=sc0.getRotY()+dx*0.012, nRX=Math.max(-1.4,Math.min(1.4,sc0.getRotX()+dy*0.012));
-    group.forEach(s=>s.setView(nRX,nRY,s.getZoom()));
+  // touch rotate + pinch-zoom
+  let t0=null, pinchDist0=null;
+  wrap.addEventListener('touchstart',e=>{
+    if(e.touches.length===1){t0=e.touches[0]; pinchDist0=null;}
+    else if(e.touches.length===2){
+      t0=null;
+      const dx=e.touches[0].clientX-e.touches[1].clientX;
+      const dy=e.touches[0].clientY-e.touches[1].clientY;
+      pinchDist0=Math.sqrt(dx*dx+dy*dy);
+    }
   },{passive:true});
+  wrap.addEventListener('touchmove',e=>{
+    e.preventDefault();
+    if(e.touches.length===1&&t0){
+      const dx=e.touches[0].clientX-t0.clientX, dy=e.touches[0].clientY-t0.clientY;
+      t0=e.touches[0];
+      const sc0=group[0];
+      const nRY=sc0.getRotY()+dx*0.014, nRX=Math.max(-1.4,Math.min(1.4,sc0.getRotX()+dy*0.014));
+      group.forEach(s=>s.setView(nRX,nRY,s.getZoom()));
+    } else if(e.touches.length===2&&pinchDist0!==null){
+      const dx=e.touches[0].clientX-e.touches[1].clientX;
+      const dy=e.touches[0].clientY-e.touches[1].clientY;
+      const dist=Math.sqrt(dx*dx+dy*dy);
+      const f=dist/pinchDist0; pinchDist0=dist;
+      group.forEach(s=>s.setView(s.getRotX(),s.getRotY(),Math.max(0.2,Math.min(5,s.getZoom()*f))));
+    }
+  },{passive:false});
+  wrap.addEventListener('touchend',()=>{t0=null;pinchDist0=null;},{passive:true});
 }
 
 // ─────────────────────────────────────────────────────────────────────
@@ -710,8 +742,8 @@ function onResize(){
     sc.camera.updateProjectionMatrix();
     sc.updateCamera();
   });
-  // redraw colorbars
   if(hScenes.length) plotHarmonics();
+  if(dScenes.length&&dFgrid) drawDecomp();
 }
 window.addEventListener('resize',()=>setTimeout(onResize,50));
 
